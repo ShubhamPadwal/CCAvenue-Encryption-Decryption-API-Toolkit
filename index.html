@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CCAvenue API Kit + AES Encrypt/Decrypt Tool + SHA-256 Hash</title>
+    <meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        h2 { color: #004080; }
+        .tab { margin-bottom: 20px; }
+        .tab button { padding: 10px 20px; margin-right: 5px; cursor: pointer; }
+        .tabcontent { display: none; border: 1px solid #ccc; padding: 20px; margin-top: 10px; }
+        input, select, textarea { width: 100%; padding: 8px; margin: 5px 0; }
+        table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+        td { padding: 5px; border: 1px solid #ccc; }
+        .response { margin-top: 10px; padding: 10px; border: 1px solid #ccc; background: #f5f5f5; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; padding: 10px; }
+        button:hover { background-color: #005fcc; }
+    </style>
+</head>
+<body>
+
+<h2>CCAvenue API Kit + AES Encrypt/Decrypt Tool + SHA-256 Hash Generator</h2>
+
+<div class="tab">
+  <button onclick="openTab('encryptTab')">Encrypt / Decrypt</button>
+  <button onclick="openTab('apiTab')">API Call</button>
+  <button onclick="openTab('customTab')">Custom Payload</button>
+  <button onclick="openTab('hashTab')">Generate Hash</button>
+</div>
+
+<!-- ================= ENCRYPT/DECRYPT TAB ================= -->
+<div id="encryptTab" class="tabcontent">
+    <h3>Encryption / Decryption</h3>
+    <label>Working Key:</label>
+    <input type="text" id="workingKey" placeholder="Enter your working key">
+
+    <label>Mode:</label>
+    <select id="mode">
+        <option value="encrypt">Encrypt</option>
+        <option value="decrypt">Decrypt</option>
+    </select>
+
+    <label>Input Text / Encrypted Text:</label>
+    <textarea id="inputText" rows="5"></textarea>
+
+    <button onclick="processAES()">Process</button>
+
+    <h4>Result:</h4>
+    <textarea id="resultText" rows="5" readonly></textarea>
+</div>
+
+<!-- ================= API CALL TAB ================= -->
+<div id="apiTab" class="tabcontent">
+    <h3>API Call</h3>
+
+    <label>Environment:</label>
+    <select id="environment" onchange="updateActionURL()">
+        <option value="staging">Staging</option>
+        <option value="production">Production</option>
+    </select>
+
+    <form id="apiForm" method="post" target="_blank">
+        <label>Command:</label>
+        <input list="commandOptions" name="command" placeholder="Select or type command">
+        <datalist id="commandOptions">
+            <option value="orderStatusTracker">
+            <option value="orderLookup">
+            <option value="refundOrder">
+            <option value="generateInvoice">
+            <option value="generateQuickInvoice">
+        </datalist>
+
+        <label>Enc Request:</label>
+        <input type="text" name="enc_request">
+
+        <label>Access Code:</label>
+        <input type="text" name="access_code">
+
+        <label>Request Type:</label>
+        <input type="text" name="request_type" value="JSON">
+
+        <label>Response Type:</label>
+        <input type="text" name="response_type" value="JSON">
+
+        <label>Version:</label>
+        <input type="text" name="version" value="1.2">
+
+        <button type="submit">Submit</button>
+    </form>
+</div>
+
+<!-- ================= CUSTOM PAYLOAD TAB ================= -->
+<div id="customTab" class="tabcontent">
+    <h3>Custom Payload / Bank Redirect</h3>
+
+    <label>Bank URL:</label>
+    <input type="text" id="bankUrl" placeholder="https://xxxx/xxxx" required>
+
+    <label>Merchant Code:</label>
+    <input type="text" id="merchantcode" placeholder="Enter Merchant Code" required>
+
+    <label>Encparam:</label>
+    <textarea id="encparam" rows="6" placeholder="Paste encrypted parameter here" required></textarea>
+
+    <button onclick="redirectToBank()">Submit</button>
+
+    <form id="redirectForm" method="POST" style="display:none;">
+        <input type="hidden" name="merchantcode">
+        <input type="hidden" name="encparam">
+    </form>
+</div>
+
+<!-- ================= SHA-256 HASH TAB ================= -->
+<div id="hashTab" class="tabcontent">
+    <h3>SHA-256 Hash Generator with Working Key</h3>
+
+    <label>Working Key: <input type="text" id="hashWorkingKey" placeholder="Enter your working key"></label><br><br>
+    <label>Access Code: <input type="text" id="hashAccessCode" placeholder="Enter your access code"></label><br><br>
+    <button onclick="generateHash()">Generate Hash</button>
+
+    <p>Generated SHA-256 Hash: <span id="hashOutput"></span></p>
+</div>
+
+<script>
+    // ================= TAB FUNCTION =================
+    function openTab(tabName) {
+        const tabcontent = document.getElementsByClassName("tabcontent");
+        for (let i = 0; i < tabcontent.length; i++) {
+            tabcontent[i].style.display = "none";
+        }
+        document.getElementById(tabName).style.display = "block";
+    }
+
+    // ================= UPDATE FORM URL =================
+    function updateActionURL() {
+        const env = document.getElementById("environment").value;
+        const form = document.getElementById("apiForm");
+        if(env === "staging") {
+            form.action = "https://apitest.ccavenue.com/apis/servlet/DoWebTrans";
+        } else {
+            form.action = "https://api.ccavenue.com/apis/servlet/DoWebTrans";
+        }
+    }
+
+    // ================= AES FUNCTION =================
+    function processAES() {
+        const key = document.getElementById("workingKey").value;
+        const text = document.getElementById("inputText").value;
+        const mode = document.getElementById("mode").value;
+
+        if(!key || !text) {
+            alert("Please enter both key and text!");
+            return;
+        }
+
+        const keyHash = CryptoJS.MD5(key).toString(CryptoJS.enc.Hex);
+        const iv = CryptoJS.enc.Hex.parse("000102030405060708090a0b0c0d0e0f");
+
+        try {
+            let result;
+            if(mode === "encrypt") {
+                const encrypted = CryptoJS.AES.encrypt(text, CryptoJS.enc.Hex.parse(keyHash), { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+                result = encrypted.ciphertext.toString(CryptoJS.enc.Hex);
+            } else {
+                const encryptedHex = CryptoJS.enc.Hex.parse(text);
+                const decrypted = CryptoJS.AES.decrypt({ciphertext: encryptedHex}, CryptoJS.enc.Hex.parse(keyHash), { iv: iv, mode: CryptoJS.mode.CBC, padding: CryptoJS.pad.Pkcs7 });
+                result = decrypted.toString(CryptoJS.enc.Utf8);
+            }
+            document.getElementById("resultText").value = result;
+        } catch (err) {
+            alert("Error: " + err.message);
+        }
+    }
+
+    // ================= REDIRECT FUNCTION =================
+    function redirectToBank() {
+        var bankUrl = document.getElementById('bankUrl').value.trim();
+        var merchantcode = document.getElementById('merchantcode').value.trim();
+        var encparam = document.getElementById('encparam').value.trim();
+
+        if (!bankUrl || !merchantcode || !encparam) {
+            alert("Please fill all fields.");
+            return;
+        }
+
+        var form = document.getElementById('redirectForm');
+        form.action = bankUrl;
+        form.merchantcode.value = merchantcode;
+        form.encparam.value = encparam;
+        form.submit();
+    }
+
+    // ================= SHA-256 HASH FUNCTION =================
+    async function generateHash() {
+        const workingKey = document.getElementById("hashWorkingKey").value;
+        const accessCode = document.getElementById("hashAccessCode").value;
+
+        if (!workingKey || !accessCode) {
+            alert("Please enter both Working Key and Access Code.");
+            return;
+        }
+
+        const dataToHash = workingKey + accessCode;
+        const encoder = new TextEncoder();
+        const data = encoder.encode(dataToHash);
+
+        const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+        const hashArray = Array.from(new Uint8Array(hashBuffer));
+        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+        document.getElementById("hashOutput").textContent = hashHex;
+    }
+
+    // Show encrypt tab by default
+    openTab('encryptTab');
+    updateActionURL();
+</script>
+
+</body>
+</html>
